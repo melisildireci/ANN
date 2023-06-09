@@ -1,16 +1,12 @@
 import os
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.layers import Dropout
 import cv2
 import numpy as np
-import tensorflow as tf
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import normalize
-import pandas as pd
+from keras.models import Sequential
+from keras.layers import Dense, Flatten
 
-data_dir = r'C:/Users/User/Desktop/orl_faces'
-class_names = ['elifkusumbaltanem', 'melis', 'enes']
+data_dir = r'C:/Users/User/Desktop/orl_faces2'
+class_names = ['furkan', 'semih', 'eymen']
 num_classes = len(class_names)
 img_size = (64, 64)
 
@@ -41,51 +37,45 @@ labels = np.array(labels)
 X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.2, random_state=42)
 
 # Normalizasyon (0-255 aralığını 0-1 aralığına dönüştürme)
-#HOG yerine kullanıldı
-X_train_normalized = normalize(X_train.reshape(X_train.shape[0], -1))
-X_test_normalized = normalize(X_test.reshape(X_test.shape[0], -1))
+X_train = X_train / 255.0
+X_test = X_test / 255.0
 
 # Yapay sinir ağı modelini oluşturun
-model = tf.keras.models.Sequential([
-
-    tf.keras.layers.Dense(124, activation='relu'),
-    tf.keras.layers.Dropout(0.01),
-    tf.keras.layers.Dense(512, activation='relu'),
-    tf.keras.layers.Dropout(0.01),
-    tf.keras.layers.Dense(num_classes, activation='softmax')
-])
+model = Sequential()
+model.add(Flatten(input_shape=(img_size[0], img_size[1])))
+model.add(Dense(128, activation='relu'))
+model.add(Dense(num_classes, activation='softmax'))
 
 # Modeli derleyin
-model.compile(optimizer=tf.keras.optimizers.Adam(0.001), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 # Modeli eğitin
-model.fit(X_train_normalized, y_train, epochs=30, batch_size=128, validation_data=(X_test_normalized, y_test))
+model.fit(X_train, y_train, epochs=20, batch_size=128, validation_data=(X_test, y_test))
 
 # Modelin performansını değerlendirin
-test_loss, test_accuracy = model.evaluate(X_test_normalized, y_test)
+test_loss, test_accuracy = model.evaluate(X_test, y_test)
 print("Test Loss:", test_loss)
 print("Test Accuracy:", test_accuracy)
 
-# Örnek bir görüntüyü yükleme ve ön işleme
-example = cv2.imread(r'C:\Users\User\Desktop\image\elifkusumbaltanesi.jpeg', cv2.IMREAD_GRAYSCALE)
-#example = cv2.imread(r'C:\Users\User\Desktop\image\melis.jpeg', cv2.IMREAD_GRAYSCALE)
-#example = cv2.imread(r'C:\Users\User\Desktop\image\enes.jpeg', cv2.IMREAD_GRAYSCALE)
-example = cv2.resize(example, img_size)
+# Kamera üzerinden tahmin yapma
+cap = cv2.VideoCapture(0)
 
-example = example.reshape(1, -1)
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-#query_image = query_image / 255.0
-example = normalize(example)
+    # Görüntüyü gri tonlamaya dönüştürün ve yeniden boyutlandırın
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, img_size)
 
-example = np.expand_dims(example, axis=0)
+    # Normalizasyon
+    gray = gray / 255.0
 
-# Tahmin yapma
-predictions = model.predict(example)
-predicted_label = class_names[np.argmax(predictions)]
+    # Tahmin yapma
+    prediction = model.predict(np.array([gray]))
+    predicted_class = class_names[np.argmax(prediction)]
 
-print("predict class:", predicted_label)
-# excel yazdırma
-data = {'Name': [predicted_label], 'Label': ['+']}
-df = pd.DataFrame(data)
-df.to_excel('attendance.xlsx', index=False)
-print("yoklama alındı ")
+    # Tahmin sonucunu ekrana yazdırma
+    cv2.putText(frame, "Predicted: {}".format(predicted_class), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    cv2.imshow
